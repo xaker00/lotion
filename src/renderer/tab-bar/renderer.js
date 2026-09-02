@@ -9,6 +9,7 @@ let useNativeFrame = false;
 let isFullScreen = false;
 let canGoBack = false;
 let canGoForward = false;
+let focusedWorkspace = null;
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -181,6 +182,11 @@ function renderTabGroups(tabList) {
     workspaceColorMap.set(name, WORKSPACE_PALETTES[index % WORKSPACE_PALETTES.length]);
   });
 
+  // If focusedWorkspace is set, ensure it still exists in the active tabs
+  if (focusedWorkspace && !uniqueWorkspaces.includes(focusedWorkspace)) {
+    focusedWorkspace = null;
+  }
+
   const groups = [];
   let currentGroup = null;
 
@@ -205,9 +211,48 @@ function renderTabGroups(tabList) {
       const border = isDark ? palette.darkBorder : palette.lightBorder;
       styleAttr = `style="background-color: ${bg}; border-color: ${border};"`;
     }
+
+    const isThisGroupFocused = focusedWorkspace !== null && focusedWorkspace === group.name;
+    const isCollapsed = focusedWorkspace !== null && !isThisGroupFocused;
+
+    if (isCollapsed) {
+      // Privacy-safe collapsed pill: only show workspace icon + count (no tab titles!)
+      const repTab = group.tabs.find(t => t.workspaceIcon) || group.tabs[0];
+      const icon = repTab?.workspaceIcon;
+      let iconHtml = '';
+      if (icon) {
+        const isUrl = icon.startsWith('http://') || icon.startsWith('https://') || icon.startsWith('data:') || icon.startsWith('/');
+        if (isUrl) {
+          iconHtml = `<img src="${escapeHtml(icon)}" class="workspace-icon" alt="" onerror="this.style.display='none'">`;
+        } else {
+          iconHtml = `<span class="workspace-icon workspace-icon-text">${escapeHtml(icon)}</span>`;
+        }
+      } else {
+        iconHtml = '<span class="workspace-icon workspace-icon-text">📁</span>';
+      }
+
+      return `
+        <div class="workspace-group collapsed" ${styleAttr} data-workspace="${escapeHtml(group.name)}" title="Switch to this workspace (${group.tabs.length} tabs)">
+          <div class="collapsed-pill">
+            ${iconHtml}
+            <span class="collapsed-count">${group.tabs.length}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Normal or focused group: show focus button + tabs
+    const focusBtnHtml = group.name ? `
+      <button class="workspace-focus-btn ${isThisGroupFocused ? 'active' : ''}"
+              data-workspace="${escapeHtml(group.name)}"
+              title="${isThisGroupFocused ? 'Exit focus (show all workspaces)' : 'Focus workspace (hide others)'}">
+        ${isThisGroupFocused ? '🎯' : '⊚'}
+      </button>
+    ` : '';
+
     const renderedTabs = group.tabs.map(tab => renderTab(tab, palette)).join('');
     const titleAttr = group.name ? `title="Workspace: ${escapeHtml(group.name)}"` : '';
-    return `<div class="workspace-group" ${styleAttr} ${titleAttr}>${renderedTabs}</div>`;
+    return `<div class="workspace-group ${isThisGroupFocused ? 'focused' : ''}" ${styleAttr} ${titleAttr}>${focusBtnHtml}${renderedTabs}</div>`;
   }).join('');
 }
 
@@ -447,6 +492,33 @@ function addEventListeners() {
       window.tabBarAPI.showLogoMenu();
     });
   }
+
+  // Workspace focus button click
+  document.querySelectorAll('.workspace-focus-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wsName = btn.dataset.workspace;
+      focusedWorkspace = (focusedWorkspace === wsName) ? null : wsName;
+      render();
+    });
+  });
+
+  // Collapsed workspace pill click - switch focus and activate its tab
+  document.querySelectorAll('.workspace-group.collapsed').forEach(groupEl => {
+    groupEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wsName = groupEl.dataset.workspace;
+      if (wsName) {
+        focusedWorkspace = wsName;
+        const wsTabs = tabs.filter(t => t.workspaceName === wsName);
+        const targetTab = wsTabs.find(t => t.tabId === activeTabId) || wsTabs[0];
+        if (targetTab && window.tabBarAPI.switchTab) {
+          window.tabBarAPI.switchTab(targetTab.tabId);
+        }
+        render();
+      }
+    });
+  });
 
   updateNavigationButtons();
 }
