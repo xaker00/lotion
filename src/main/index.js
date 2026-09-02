@@ -756,21 +756,11 @@ ipcMain.handle('tab-bar:create-tab', async (event, options = {}) => {
     return { success: false };
   }
 
-  const TabManager = require('./managers/TabManager');
-  const tabManager = TabManager.getInstance();
-
-  const tabController = tabManager.createTab({
-    windowId: windowController.windowId,
+  const tabController = windowController.createTab({
     url: options.url || config.domainBaseUrl,
     title: options.title || 'New Tab',
     makeActive: true,
   });
-
-  // Switch to the new tab
-  windowController.setActiveTab(tabController);
-
-  // Notify tab bar of update
-  notifyTabBarUpdate(windowController.windowId);
 
   return { success: true, tabId: tabController.tabId };
 });

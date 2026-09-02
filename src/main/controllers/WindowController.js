@@ -273,21 +273,69 @@ class WindowController {
   }
 
   /**
+   * Create a new tab in this window and activate it if requested
+   * @param {Object} options
+   * @param {string} [options.url] - Initial URL
+   * @param {string} [options.title] - Initial title
+   * @param {boolean} [options.makeActive=true] - Whether to activate the tab
+   * @returns {TabController} The created tab controller
+   */
+  createTab(options = {}) {
+    const TabManager = require('../managers/TabManager');
+    const tabManager = TabManager.getInstance();
+    const config = require('../../../config/config.json');
+
+    const makeActive = options.makeActive !== undefined ? options.makeActive : true;
+
+    log.info(`Creating tab in window ${this.windowId}, makeActive: ${makeActive}`);
+    const tabController = tabManager.createTab({
+      windowId: this.windowId,
+      url: options.url || config.domainBaseUrl,
+      title: options.title || 'New Tab',
+      makeActive,
+    });
+
+    if (makeActive) {
+      this.setActiveTab(tabController);
+    }
+
+    this.notifyTabBar();
+
+    return tabController;
+  }
+
+  /**
+   * Notify this window's tab bar view of the latest tabs and active tab
+   */
+  notifyTabBar() {
+    if (!this.tabBarView || !this.tabBarView.webContents) return;
+
+    const state = this.store.getState();
+    const windowState = state.windows.windows[this.windowId];
+    if (!windowState) return;
+
+    const tabs = windowState.tabIds.map((tabId) => {
+      const tabState = state.tabs.tabs[tabId];
+      return tabState || { tabId };
+    });
+
+    this.tabBarView.webContents.send('tab-bar:tabs-updated', { tabs });
+
+    if (windowState.activeTabId) {
+      this.tabBarView.webContents.send('tab-bar:tab-activated', windowState.activeTabId);
+    }
+  }
+
+  /**
    * Create initial tab when window opens
    */
   createInitialTab() {
-    const TabManager = require('../managers/TabManager');
-    const tabManager = TabManager.getInstance();
-
     log.info(`Creating initial tab for window ${this.windowId}`);
-    const tabController = tabManager.createTab({
-      windowId: this.windowId,
+    return this.createTab({
       url: this.initialUrl,
       title: this.initialTitle,
       makeActive: true,
     });
-
-    this.setActiveTab(tabController);
   }
 
   /**
