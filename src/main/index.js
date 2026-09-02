@@ -253,17 +253,17 @@ function createNativeMenuWithNavigation() {
         {
           label: 'Back',
           accelerator: 'Alt+Left',
-          click: () => { focusedWC?.getInternalBrowserWindow()?.webContents.goBack(); }
+          click: () => { focusedWC?.getActiveTabController()?.goBack(); }
         },
         {
           label: 'Forward',
           accelerator: 'Alt+Right',
-          click: () => { focusedWC?.getInternalBrowserWindow()?.webContents.goForward(); }
+          click: () => { focusedWC?.getActiveTabController()?.goForward(); }
         },
         {
           label: 'Refresh',
           accelerator: 'CmdOrCtrl+R',
-          click: () => { focusedWC?.getInternalBrowserWindow()?.webContents.reload(); }
+          click: () => { focusedWC?.getActiveTabController()?.webContentsView?.webContents.reload(); }
         },
         { type: 'separator' },
         {
@@ -731,6 +731,10 @@ ipcMain.handle('tab-bar:get-initial-state', (event) => {
     return tabState || { tabId };
   });
 
+  const activeTab = windowController.currentActiveTabController;
+  const canGoBack = activeTab ? activeTab.canGoBack() : false;
+  const canGoForward = activeTab ? activeTab.canGoForward() : false;
+
   return {
     tabs,
     activeTabId: windowState.activeTabId,
@@ -738,6 +742,8 @@ ipcMain.handle('tab-bar:get-initial-state', (event) => {
     useNativeFrame: windowController.useNativeFrame,
     platform: process.platform,
     isFullScreen: windowController.browserWindow.isFullScreen(),
+    canGoBack,
+    canGoForward,
   };
 });
 

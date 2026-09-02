@@ -7,6 +7,8 @@ let windowId = null;
 let platform = window.tabBarAPI?.platform || 'linux';
 let useNativeFrame = false;
 let isFullScreen = false;
+let canGoBack = false;
+let canGoForward = false;
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -26,7 +28,9 @@ async function loadInitialState() {
     platform = state.platform || window.tabBarAPI?.platform || 'linux';
     useNativeFrame = !!state.useNativeFrame;
     isFullScreen = !!state.isFullScreen;
-    console.log('Tab bar loaded:', { tabs, activeTabId, windowId, platform, useNativeFrame, isFullScreen });
+    canGoBack = !!state.canGoBack;
+    canGoForward = !!state.canGoForward;
+    console.log('Tab bar loaded:', { tabs, activeTabId, windowId, platform, useNativeFrame, isFullScreen, canGoBack, canGoForward });
   } catch (error) {
     console.error('Failed to load initial tab state:', error);
   }
@@ -60,6 +64,15 @@ function setupEventListeners() {
       render();
     });
   }
+
+  // Listen for navigation state changes (back/forward history)
+  if (window.tabBarAPI.onNavigationStateChanged) {
+    window.tabBarAPI.onNavigationStateChanged((navState) => {
+      canGoBack = !!navState.canGoBack;
+      canGoForward = !!navState.canGoForward;
+      updateNavigationButtons();
+    });
+  }
 }
 
 // Render tab bar UI
@@ -77,8 +90,8 @@ function render() {
         <div class="app-logo" id="app-logo" title="Lotion">
           <img src="./logo.png" alt="L" style="width: 100%; height: 100%;" onerror="this.parentElement.textContent='L'">
         </div>
-        <button class="nav-btn" id="back-btn" title="Go Back">‹</button>
-        <button class="nav-btn" id="forward-btn" title="Go Forward">›</button>
+        <button class="nav-btn" id="back-btn" title="Go Back" ${canGoBack ? '' : 'disabled'}>‹</button>
+        <button class="nav-btn" id="forward-btn" title="Go Forward" ${canGoForward ? '' : 'disabled'}>›</button>
         <button class="nav-btn" id="refresh-btn" title="Refresh">↻</button>
       </div>
       <div class="tab-list">
@@ -316,6 +329,20 @@ function addEventListeners() {
       e.stopPropagation();
       window.tabBarAPI.showLogoMenu();
     });
+  }
+
+  updateNavigationButtons();
+}
+
+// Update disabled state on navigation buttons
+function updateNavigationButtons() {
+  const backBtn = document.getElementById('back-btn');
+  const forwardBtn = document.getElementById('forward-btn');
+  if (backBtn) {
+    backBtn.disabled = !canGoBack;
+  }
+  if (forwardBtn) {
+    forwardBtn.disabled = !canGoForward;
   }
 }
 

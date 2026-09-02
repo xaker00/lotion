@@ -343,6 +343,22 @@ class WindowController {
     if (windowState.activeTabId) {
       this.tabBarView.webContents.send('tab-bar:tab-activated', windowState.activeTabId);
     }
+
+    this.notifyNavigationState();
+  }
+
+  /**
+   * Notify tab bar of the current active tab's navigation state (canGoBack / canGoForward)
+   */
+  notifyNavigationState() {
+    if (!this.tabBarView || !this.tabBarView.webContents) return;
+    const activeTab = this.currentActiveTabController;
+    const canGoBack = activeTab ? activeTab.canGoBack() : false;
+    const canGoForward = activeTab ? activeTab.canGoForward() : false;
+    this.tabBarView.webContents.send('tab-bar:navigation-state-changed', {
+      canGoBack,
+      canGoForward,
+    });
   }
 
   /**
@@ -389,6 +405,7 @@ class WindowController {
       this.browserWindow.contentView.addChildView(tabController.webContentsView);
       this.updateViewBounds(); // Position it correctly
       tabController.show();
+      this.notifyNavigationState();
     }
   }
 

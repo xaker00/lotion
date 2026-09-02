@@ -61,4 +61,11 @@ contextBridge.exposeInMainWorld('tabBarAPI', {
     ipcRenderer.on('tab-bar:fullscreen-changed', listener);
     return () => ipcRenderer.removeListener('tab-bar:fullscreen-changed', listener);
   },
+
+  // Listen for navigation state changes (back/forward enabled state)
+  onNavigationStateChanged: (callback) => {
+    const listener = (event, navState) => callback(navState);
+    ipcRenderer.on('tab-bar:navigation-state-changed', listener);
+    return () => ipcRenderer.removeListener('tab-bar:navigation-state-changed', listener);
+  },
 });

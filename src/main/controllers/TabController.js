@@ -148,6 +148,7 @@ class TabController {
 
       // Inject custom CSS after page loads
       this.injectCustomCSS();
+      this.notifyWindowNavigationState();
     });
 
     // Navigation started
@@ -170,6 +171,7 @@ class TabController {
           url,
         })
       );
+      this.notifyWindowNavigationState();
     });
 
     // In-page URL changes (Notion uses history.pushState for routing
@@ -183,6 +185,7 @@ class TabController {
           url,
         })
       );
+      this.notifyWindowNavigationState();
     });
 
     // Favicon updated
@@ -689,6 +692,18 @@ class TabController {
       return false;
     }
     return this.webContentsView.webContents.navigationHistory.canGoForward();
+  }
+
+  /**
+   * Notify this tab's parent window of navigation state updates if active
+   */
+  notifyWindowNavigationState() {
+    const AppController = require('./AppController');
+    const appCtrl = AppController.getInstance();
+    const winCtrl = appCtrl?.windowControllers.get(this.windowId);
+    if (winCtrl && winCtrl.currentActiveTabController === this) {
+      winCtrl.notifyNavigationState();
+    }
   }
 
   /**
