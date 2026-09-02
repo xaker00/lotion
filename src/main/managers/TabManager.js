@@ -59,6 +59,7 @@ class TabManager {
     title = 'New Tab',
     makeActive = true,
     isPinned = false,
+    insertAfterTabId = null,
   }) {
     if (this.tabs.has(tabId)) {
       log.warn(`Tab ${tabId} already exists, returning existing tab`);
@@ -83,6 +84,7 @@ class TabManager {
       addTabToWindow({
         windowId,
         tabId,
+        insertAfterTabId,
       })
     );
 

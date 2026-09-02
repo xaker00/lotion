@@ -45,6 +45,8 @@ const tabsSlice = createSlice({
         url: url || 'https://www.notion.so',
         title,
         favicon,
+        workspaceIcon: null,
+        workspaceName: null,
         isLoaded: false,
         breadcrumbs: [],
         isPinned,
@@ -139,6 +141,15 @@ const tabsSlice = createSlice({
       }
     },
 
+    // Update tab workspace info
+    updateTabWorkspace: (state, action) => {
+      const { tabId, workspaceIcon, workspaceName } = action.payload;
+      if (state.tabs[tabId]) {
+        state.tabs[tabId].workspaceIcon = workspaceIcon;
+        state.tabs[tabId].workspaceName = workspaceName;
+      }
+    },
+
     // Bulk update tab properties
     updateTabProperties: (state, action) => {
       const { tabId, properties } = action.payload;
@@ -161,6 +172,7 @@ const {
   updateTabTitle,
   updateTabUrl,
   updateTabFavicon,
+  updateTabWorkspace,
   updateTabLoaded,
   updateTabBreadcrumbs,
   toggleTabPinned,
@@ -182,6 +194,7 @@ module.exports = {
   updateTabTitle,
   updateTabUrl,
   updateTabFavicon,
+  updateTabWorkspace,
   updateTabLoaded,
   updateTabBreadcrumbs,
   toggleTabPinned,

@@ -95,7 +95,7 @@ function render() {
         <button class="nav-btn" id="refresh-btn" title="Refresh">↻</button>
       </div>
       <div class="tab-list">
-        ${tabs.map(tab => renderTab(tab)).join('')}
+        ${renderTabGroups(tabs)}
       </div>
       <button class="new-tab-btn" id="new-tab-btn" title="New Tab">+</button>
       <div class="window-drag-area" title="Drag to move window"></div>
@@ -113,6 +113,33 @@ function render() {
   addEventListeners();
   setupTabDragAndDrop();
   setupTabListWheelScroll();
+}
+
+// Render tabs grouped into workspace clusters
+function renderTabGroups(tabList) {
+  if (!tabList || tabList.length === 0) return '';
+
+  const groups = [];
+  let currentGroup = null;
+
+  for (const tab of tabList) {
+    const wsName = tab.workspaceName || '';
+    if (!currentGroup || currentGroup.name !== wsName) {
+      currentGroup = {
+        name: wsName,
+        tabs: [tab],
+      };
+      groups.push(currentGroup);
+    } else {
+      currentGroup.tabs.push(tab);
+    }
+  }
+
+  return groups.map(group => {
+    const renderedTabs = group.tabs.map(tab => renderTab(tab)).join('');
+    const titleAttr = group.name ? `title="Workspace: ${escapeHtml(group.name)}"` : '';
+    return `<div class="workspace-group" ${titleAttr}>${renderedTabs}</div>`;
+  }).join('');
 }
 
 // Translate vertical scroll wheel into horizontal panning over the tab
@@ -158,6 +185,20 @@ function renderTab(tab) {
   const isPinned = tab.isPinned;
   const title = truncateTitle(tab.title || 'New Tab', 20);
 
+  // Workspace icon (if available)
+  let workspaceIconHtml = '';
+  if (tab.workspaceIcon && !isPinned) {
+    const isUrl = tab.workspaceIcon.startsWith('http://') ||
+                  tab.workspaceIcon.startsWith('https://') ||
+                  tab.workspaceIcon.startsWith('data:') ||
+                  tab.workspaceIcon.startsWith('/');
+    if (isUrl) {
+      workspaceIconHtml = `<img src="${escapeHtml(tab.workspaceIcon)}" class="workspace-icon" alt="" title="${escapeHtml(tab.workspaceName || 'Workspace')}" onerror="this.style.display='none'">`;
+    } else {
+      workspaceIconHtml = `<span class="workspace-icon workspace-icon-text" title="${escapeHtml(tab.workspaceName || 'Workspace')}">${escapeHtml(tab.workspaceIcon)}</span>`;
+    }
+  }
+
   // Use favicon if available, otherwise show a default icon or emoji
   const faviconHtml = tab.favicon
     ? `<img src="${escapeHtml(tab.favicon)}" class="favicon" alt="" onerror="this.style.display='none'">`
@@ -168,6 +209,7 @@ function renderTab(tab) {
          data-tab-id="${tab.tabId}"
          draggable="true"
          title="${escapeHtml(tab.title || 'Untitled')}">
+      ${workspaceIconHtml}
       ${faviconHtml}
       <span class="tab-title">${escapeHtml(title)}</span>
       ${!isPinned ? `<button class="close-btn" data-tab-id="${tab.tabId}" title="Close Tab">×</button>` : ''}

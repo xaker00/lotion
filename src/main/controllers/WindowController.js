@@ -305,13 +305,17 @@ class WindowController {
     const config = require('../../../config/config.json');
 
     const makeActive = options.makeActive !== undefined ? options.makeActive : true;
+    const insertAfterTabId = options.insertAfterTabId !== undefined
+      ? options.insertAfterTabId
+      : (this.currentActiveTabController ? this.currentActiveTabController.tabId : null);
 
-    log.info(`Creating tab in window ${this.windowId}, makeActive: ${makeActive}`);
+    log.info(`Creating tab in window ${this.windowId}, makeActive: ${makeActive}, insertAfterTabId: ${insertAfterTabId}`);
     const tabController = tabManager.createTab({
       windowId: this.windowId,
       url: options.url || config.domainBaseUrl,
       title: options.title || 'New Tab',
       makeActive,
+      insertAfterTabId,
     });
 
     if (makeActive) {

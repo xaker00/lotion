@@ -149,6 +149,10 @@ class TabController {
       // Inject custom CSS after page loads
       this.injectCustomCSS();
       this.notifyWindowNavigationState();
+
+      // Extract workspace icon and name
+      this.extractWorkspaceInfo();
+      setTimeout(() => this.extractWorkspaceInfo(), 1000);
     });
 
     // Navigation started
@@ -186,6 +190,7 @@ class TabController {
         })
       );
       this.notifyWindowNavigationState();
+      this.extractWorkspaceInfo();
     });
 
     // Favicon updated
@@ -703,6 +708,42 @@ class TabController {
     const winCtrl = appCtrl?.windowControllers.get(this.windowId);
     if (winCtrl && winCtrl.currentActiveTabController === this) {
       winCtrl.notifyNavigationState();
+    }
+  }
+
+  /**
+   * Extract workspace icon and name from Notion DOM
+   */
+  async extractWorkspaceInfo() {
+    if (this.isDestroyed || !this.webContentsView) return;
+    try {
+      const info = await this.webContentsView.webContents.executeJavaScript(`(() => {
+        const switcher = document.querySelector('.notion-sidebar-switcher');
+        if (!switcher) return null;
+        const iconEl = switcher.querySelector('.notion-record-icon');
+        const img = iconEl?.querySelector('img');
+        const text = iconEl?.textContent?.trim();
+        const nameEl = switcher.querySelector('div[style*="font-weight: 500"]') || switcher.querySelector('.x78zum5 div');
+        return {
+          iconUrl: img?.src || null,
+          iconText: (!img && text) ? text : null,
+          name: nameEl?.textContent?.trim() || switcher.textContent?.trim() || null
+        };
+      })()`);
+
+      if (info && (info.iconUrl || info.iconText)) {
+        const { updateTabWorkspace } = require('../store/slices/tabsSlice');
+        this.store.dispatch(
+          updateTabWorkspace({
+            tabId: this.tabId,
+            workspaceIcon: info.iconUrl || info.iconText,
+            workspaceName: info.name,
+          })
+        );
+        log.debug(`Tab ${this.tabId}: Workspace detected: "${info.name}"`);
+      }
+    } catch (err) {
+      log.debug(`Tab ${this.tabId}: Could not extract workspace info: ${err.message}`);
     }
   }
 
