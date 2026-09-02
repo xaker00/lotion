@@ -25,6 +25,9 @@ class WindowController {
     // Tab bar height in pixels
     this.TAB_BAR_HEIGHT = 32;
 
+    // Split view controller (for 2-pane side-by-side view)
+    this.currentSplitTabController = null;
+
     log.info(`WindowController initialized for windowId: ${this.windowId} (useNativeFrame=${this.useNativeFrame})`);
   }
 
@@ -266,14 +269,47 @@ class WindowController {
     });
 
     // Update active tab content area (below tab bar)
-    if (this.currentActiveTabController && this.currentActiveTabController.webContentsView) {
-      this.currentActiveTabController.webContentsView.setBounds({
-        x: 0,
-        y: this.TAB_BAR_HEIGHT,
-        width: width,
-        height: height - this.TAB_BAR_HEIGHT,
+    const state = this.store.getState();
+    const windowState = state.windows.windows[this.windowId];
+    const splitTabId = windowState?.splitTabId;
+    const splitRatio = windowState?.splitRatio || 0.5;
+
+    const contentTop = this.TAB_BAR_HEIGHT;
+    const contentHeight = Math.max(0, height - this.TAB_BAR_HEIGHT);
+
+    if (splitTabId && this.currentSplitTabController && this.currentSplitTabController.webContentsView) {
+      // 2-pane side-by-side split view
+      const dividerWidth = 4;
+      const leftWidth = Math.floor((width - dividerWidth) * splitRatio);
+      const rightWidth = Math.max(0, width - dividerWidth - leftWidth);
+
+      if (this.currentActiveTabController && this.currentActiveTabController.webContentsView) {
+        this.currentActiveTabController.webContentsView.setBounds({
+          x: 0,
+          y: contentTop,
+          width: leftWidth,
+          height: contentHeight,
+        });
+      }
+
+      this.currentSplitTabController.webContentsView.setBounds({
+        x: leftWidth + dividerWidth,
+        y: contentTop,
+        width: rightWidth,
+        height: contentHeight,
       });
-      log.debug(`Set tab content bounds:`, { x: 0, y: this.TAB_BAR_HEIGHT, width, height: height - this.TAB_BAR_HEIGHT });
+      log.debug(`Set split bounds: left=${leftWidth}px, right=${rightWidth}px`);
+    } else {
+      // Single pane (full width)
+      if (this.currentActiveTabController && this.currentActiveTabController.webContentsView) {
+        this.currentActiveTabController.webContentsView.setBounds({
+          x: 0,
+          y: contentTop,
+          width: width,
+          height: contentHeight,
+        });
+        log.debug(`Set tab content bounds:`, { x: 0, y: contentTop, width, height: contentHeight });
+      }
     }
 
     // Ensure tab bar stays on top by bringing it to front
@@ -366,10 +402,19 @@ class WindowController {
       return tabState || { tabId };
     });
 
-    this.tabBarView.webContents.send('tab-bar:tabs-updated', { tabs });
+    this.tabBarView.webContents.send('tab-bar:tabs-updated', {
+      tabs,
+      splitTabId: windowState.splitTabId || null,
+      splitRatio: windowState.splitRatio || 0.5,
+      activePane: windowState.activePane || 'left',
+    });
 
     if (windowState.activeTabId) {
       this.tabBarView.webContents.send('tab-bar:tab-activated', windowState.activeTabId);
+    }
+
+    if (windowState.splitTabId) {
+      this.tabBarView.webContents.send('tab-bar:split-tab-activated', windowState.splitTabId);
     }
 
     this.notifyNavigationState();
@@ -412,6 +457,13 @@ class WindowController {
     }
 
     log.info(`Setting active tab ${tabController.tabId} for window ${this.windowId}`);
+
+    // If this tab was in split view, close the split view
+    if (this.currentSplitTabController === tabController) {
+      this.currentSplitTabController = null;
+      const { closeSplitTab } = require('../store/slices/windowsSlice');
+      this.store.dispatch(closeSplitTab({ windowId: this.windowId }));
+    }
 
     // Hide current active tab if exists
     if (this.currentActiveTabController && this.currentActiveTabController !== tabController) {
@@ -497,6 +549,10 @@ class WindowController {
   switchToTab(tabId) {
     const tabController = this.getTabController(tabId);
     if (tabController && tabController.windowId === this.windowId) {
+      // If switching to the tab that is currently split, close the split
+      if (this.currentSplitTabController?.tabId === tabId) {
+        this.closeSplitTab();
+      }
       this.setActiveTab(tabController);
 
       // Update Redux store
@@ -505,6 +561,80 @@ class WindowController {
     } else {
       log.warn(`Cannot switch to tab ${tabId}: not found or belongs to different window`);
     }
+  }
+
+  /**
+   * Open a tab in split view (right pane)
+   * @param {TabController} tabController - The tab to show in split pane
+   * @param {number} [splitRatio=0.5] - Divider ratio
+   */
+  setSplitTab(tabController, splitRatio = 0.5) {
+    if (!tabController) return;
+    if (tabController === this.currentActiveTabController) return;
+
+    log.info(`Setting split tab ${tabController.tabId} for window ${this.windowId}`);
+
+    // If another split tab was active, remove it
+    if (this.currentSplitTabController && this.currentSplitTabController !== tabController) {
+      this.currentSplitTabController.hide();
+      if (this.currentSplitTabController.webContentsView && this.browserWindow.contentView) {
+        this.browserWindow.contentView.removeChildView(this.currentSplitTabController.webContentsView);
+      }
+    }
+
+    this.currentSplitTabController = tabController;
+
+    if (tabController.webContentsView && this.browserWindow.contentView) {
+      this.browserWindow.contentView.addChildView(tabController.webContentsView);
+      tabController.show();
+    }
+
+    const { setSplitTab } = require('../store/slices/windowsSlice');
+    this.store.dispatch(setSplitTab({
+      windowId: this.windowId,
+      tabId: tabController.tabId,
+      splitRatio,
+    }));
+
+    this.updateViewBounds();
+    this.notifyTabBar();
+  }
+
+  /**
+   * Close the split view and restore single pane layout
+   */
+  closeSplitTab() {
+    log.info(`Closing split tab for window ${this.windowId}`);
+    if (this.currentSplitTabController) {
+      this.currentSplitTabController.hide();
+      if (this.currentSplitTabController.webContentsView && this.browserWindow.contentView) {
+        this.browserWindow.contentView.removeChildView(this.currentSplitTabController.webContentsView);
+      }
+      this.currentSplitTabController = null;
+    }
+
+    const { closeSplitTab } = require('../store/slices/windowsSlice');
+    this.store.dispatch(closeSplitTab({ windowId: this.windowId }));
+
+    this.updateViewBounds();
+    this.notifyTabBar();
+  }
+
+  /**
+   * Set split ratio (0.2 - 0.8)
+   */
+  setSplitRatio(splitRatio) {
+    const { setSplitRatio } = require('../store/slices/windowsSlice');
+    this.store.dispatch(setSplitRatio({ windowId: this.windowId, splitRatio }));
+    this.updateViewBounds();
+  }
+
+  /**
+   * Get current split tab controller
+   * @returns {TabController|null}
+   */
+  getSplitTabController() {
+    return this.currentSplitTabController;
   }
 
   /**

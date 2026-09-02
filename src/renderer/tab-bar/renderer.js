@@ -10,6 +10,8 @@ let isFullScreen = false;
 let canGoBack = false;
 let canGoForward = false;
 let focusedWorkspace = null;
+let splitTabId = null;
+let splitRatio = 0.5;
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -25,13 +27,15 @@ async function loadInitialState() {
     const state = await window.tabBarAPI.getInitialState();
     tabs = state.tabs || [];
     activeTabId = state.activeTabId || null;
+    splitTabId = state.splitTabId || null;
+    splitRatio = state.splitRatio || 0.5;
     windowId = state.windowId || null;
     platform = state.platform || window.tabBarAPI?.platform || 'linux';
     useNativeFrame = !!state.useNativeFrame;
     isFullScreen = !!state.isFullScreen;
     canGoBack = !!state.canGoBack;
     canGoForward = !!state.canGoForward;
-    console.log('Tab bar loaded:', { tabs, activeTabId, windowId, platform, useNativeFrame, isFullScreen, canGoBack, canGoForward });
+    console.log('Tab bar loaded:', { tabs, activeTabId, splitTabId, windowId, platform, useNativeFrame, isFullScreen, canGoBack, canGoForward });
   } catch (error) {
     console.error('Failed to load initial tab state:', error);
   }
@@ -42,6 +46,12 @@ function setupEventListeners() {
   // Listen for tab updates from main process
   window.tabBarAPI.onTabsUpdated((data) => {
     tabs = data.tabs;
+    if (data.splitTabId !== undefined) {
+      splitTabId = data.splitTabId;
+    }
+    if (data.splitRatio !== undefined) {
+      splitRatio = data.splitRatio;
+    }
     render();
   });
 
@@ -49,6 +59,13 @@ function setupEventListeners() {
     activeTabId = tabId;
     render();
   });
+
+  if (window.tabBarAPI.onSplitTabActivated) {
+    window.tabBarAPI.onSplitTabActivated((id) => {
+      splitTabId = id;
+      render();
+    });
+  }
 
   // Listen for theme changes
   if (window.tabBarAPI.onThemeChanged) {
@@ -99,6 +116,19 @@ function render() {
         ${renderTabGroups(tabs)}
       </div>
       <button class="new-tab-btn" id="new-tab-btn" title="New Tab">+</button>
+      <div class="split-controls">
+        ${splitTabId ? `
+          <button class="split-btn active" id="close-split-btn" title="Close Split View">
+            <span class="split-icon">◫</span>
+            <span>Close Split</span>
+          </button>
+        ` : `
+          <div class="split-drop-zone" id="split-drop-zone" title="Drag a tab here or click to split view">
+            <span class="split-icon">◫</span>
+            <span>Split</span>
+          </div>
+        `}
+      </div>
       <div class="window-drag-area" title="Drag to move window"></div>
       ${showWindowControls ? `
       <div class="window-controls">
@@ -294,6 +324,7 @@ function updateOverflowIndicators() {
 // Render individual tab
 function renderTab(tab, palette) {
   const isActive = tab.tabId === activeTabId;
+  const isSplit = tab.tabId === splitTabId;
   const isPinned = tab.isPinned;
   const title = truncateTitle(tab.title || 'New Tab', 20);
 
@@ -316,12 +347,16 @@ function renderTab(tab, palette) {
     ? `<img src="${escapeHtml(tab.favicon)}" class="favicon" alt="" onerror="this.style.display='none'">`
     : '<span class="favicon">📄</span>';
 
-  const activeStyle = (isActive && palette)
+  const activeStyle = ((isActive || isSplit) && palette)
     ? `style="border-bottom-color: ${palette.accent};"`
     : '';
 
+  const splitClass = splitTabId
+    ? (isActive ? 'split-active-left' : (isSplit ? 'split-active-right' : ''))
+    : '';
+
   return `
-    <div class="tab ${isActive ? 'active' : ''} ${isPinned ? 'pinned' : ''}"
+    <div class="tab ${isActive ? 'active' : ''} ${isSplit ? 'split-active-right' : ''} ${splitClass} ${isPinned ? 'pinned' : ''}"
          data-tab-id="${tab.tabId}"
          ${activeStyle}
          draggable="true"
@@ -396,6 +431,37 @@ function setupTabDragAndDrop() {
       }
     });
   });
+
+  // Split drop zone handling (drag tab here to open in split view)
+  const splitZone = document.getElementById('split-drop-zone');
+  if (splitZone) {
+    splitZone.addEventListener('dragover', (e) => {
+      if (!draggedId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      splitZone.classList.add('drag-over');
+    });
+
+    splitZone.addEventListener('dragleave', () => {
+      splitZone.classList.remove('drag-over');
+    });
+
+    splitZone.addEventListener('drop', (e) => {
+      if (!draggedId) return;
+      e.preventDefault();
+      splitZone.classList.remove('drag-over');
+      if (window.tabBarAPI.splitTab) {
+        window.tabBarAPI.splitTab(draggedId);
+      }
+    });
+
+    splitZone.addEventListener('click', () => {
+      const otherTab = tabs.find(t => t.tabId !== activeTabId);
+      if (otherTab && window.tabBarAPI.splitTab) {
+        window.tabBarAPI.splitTab(otherTab.tabId);
+      }
+    });
+  }
 }
 
 // Escape HTML to prevent XSS
@@ -431,6 +497,16 @@ function addEventListeners() {
   if (newTabBtn) {
     newTabBtn.addEventListener('click', () => {
       window.tabBarAPI.createTab({ windowId });
+    });
+  }
+
+  // Close split view button click
+  const closeSplitBtn = document.getElementById('close-split-btn');
+  if (closeSplitBtn) {
+    closeSplitBtn.addEventListener('click', () => {
+      if (window.tabBarAPI.closeSplit) {
+        window.tabBarAPI.closeSplit();
+      }
     });
   }
 

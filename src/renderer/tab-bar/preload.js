@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('tabBarAPI', {
   pinTab: (tabId) => ipcRenderer.invoke('tab-bar:pin-tab', tabId),
   unpinTab: (tabId) => ipcRenderer.invoke('tab-bar:unpin-tab', tabId),
 
+  // Split view operations
+  splitTab: (tabId) => ipcRenderer.invoke('tab-bar:split-tab', { tabId }),
+  closeSplit: () => ipcRenderer.invoke('tab-bar:close-split'),
+
   // Navigation operations
   navigateBack: () => ipcRenderer.invoke('tab-bar:navigate-back'),
   navigateForward: () => ipcRenderer.invoke('tab-bar:navigate-forward'),
@@ -43,6 +47,12 @@ contextBridge.exposeInMainWorld('tabBarAPI', {
     const listener = (event, tabId) => callback(tabId);
     ipcRenderer.on('tab-bar:tab-activated', listener);
     return () => ipcRenderer.removeListener('tab-bar:tab-activated', listener);
+  },
+
+  onSplitTabActivated: (callback) => {
+    const listener = (event, splitTabId) => callback(splitTabId);
+    ipcRenderer.on('tab-bar:split-tab-activated', listener);
+    return () => ipcRenderer.removeListener('tab-bar:split-tab-activated', listener);
   },
 
   // Listen for theme changes

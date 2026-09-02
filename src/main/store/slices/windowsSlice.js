@@ -35,6 +35,10 @@ const windowsSlice = createSlice({
         // Tab management properties
         tabIds: [], // Array of tab IDs in this window
         activeTabId: null, // Currently active tab
+        // Split view properties
+        splitTabId: null, // Tab ID in split pane (null when single view)
+        splitRatio: 0.5, // Ratio for left/right pane width (0.2 - 0.8)
+        activePane: 'left', // Currently focused pane ('left' or 'right')
         // ... other properties from initialWindowState if needed
       };
       if (isFocused || state.focusedWindowId === null) {
@@ -127,6 +131,11 @@ const windowsSlice = createSlice({
         state.windows[windowId].tabIds = state.windows[windowId].tabIds.filter(
           (id) => id !== tabId
         );
+        // Clear split tab if the closed tab was split
+        if (state.windows[windowId].splitTabId === tabId) {
+          state.windows[windowId].splitTabId = null;
+          state.windows[windowId].activePane = 'left';
+        }
         // Update active tab if needed
         if (state.windows[windowId].activeTabId === tabId) {
           state.windows[windowId].activeTabId =
@@ -144,6 +153,41 @@ const windowsSlice = createSlice({
       const { windowId, tabIds } = action.payload;
       if (state.windows[windowId]) {
         state.windows[windowId].tabIds = tabIds;
+      }
+    },
+    setSplitTab: (state, action) => {
+      const { windowId, tabId, splitRatio = 0.5 } = action.payload;
+      if (state.windows[windowId]) {
+        state.windows[windowId].splitTabId = tabId;
+        state.windows[windowId].splitRatio = Math.max(0.2, Math.min(0.8, splitRatio));
+      }
+    },
+    closeSplitTab: (state, action) => {
+      const { windowId } = action.payload;
+      if (state.windows[windowId]) {
+        state.windows[windowId].splitTabId = null;
+        state.windows[windowId].activePane = 'left';
+      }
+    },
+    setSplitRatio: (state, action) => {
+      const { windowId, splitRatio } = action.payload;
+      if (state.windows[windowId]) {
+        state.windows[windowId].splitRatio = Math.max(0.2, Math.min(0.8, splitRatio));
+      }
+    },
+    setActivePane: (state, action) => {
+      const { windowId, activePane } = action.payload;
+      if (state.windows[windowId]) {
+        state.windows[windowId].activePane = activePane;
+      }
+    },
+    swapSplitPanes: (state, action) => {
+      const { windowId } = action.payload;
+      const win = state.windows[windowId];
+      if (win && win.splitTabId && win.activeTabId) {
+        const temp = win.activeTabId;
+        win.activeTabId = win.splitTabId;
+        win.splitTabId = temp;
       }
     },
     // Add other window-related reducers here

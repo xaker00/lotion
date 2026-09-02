@@ -744,6 +744,8 @@ ipcMain.handle('tab-bar:get-initial-state', (event) => {
     isFullScreen: windowController.browserWindow.isFullScreen(),
     canGoBack,
     canGoForward,
+    splitTabId: windowState.splitTabId || null,
+    splitRatio: windowState.splitRatio || 0.5,
   };
 });
 
@@ -906,6 +908,46 @@ ipcMain.handle('tab-bar:unpin-tab', async (event, tabId) => {
   return { success: true };
 });
 
+// Split tab into side-by-side view
+ipcMain.handle('tab-bar:split-tab', async (event, { tabId }) => {
+  const webContents = event.sender;
+  let windowController = null;
+  for (const wc of appController.windowControllers.values()) {
+    if (wc.tabBarView && wc.tabBarView.webContents === webContents) {
+      windowController = wc;
+      break;
+    }
+  }
+
+  if (!windowController) return { success: false };
+
+  const TabManager = require('./managers/TabManager');
+  const tabManager = TabManager.getInstance();
+  const tabToSplit = tabManager.getTab(tabId);
+  if (!tabToSplit) return { success: false };
+
+  windowController.setSplitTab(tabToSplit);
+  return { success: true };
+});
+
+// Close split view
+ipcMain.handle('tab-bar:close-split', async (event) => {
+  const webContents = event.sender;
+  let windowController = null;
+  for (const wc of appController.windowControllers.values()) {
+    if (wc.tabBarView && wc.tabBarView.webContents === webContents) {
+      windowController = wc;
+      break;
+    }
+  }
+
+  if (windowController) {
+    windowController.closeSplitTab();
+    return { success: true };
+  }
+  return { success: false };
+});
+
 // Helper function to notify tab bar of updates
 function notifyTabBarUpdate(windowId) {
   const windowController = appController.windowControllers.get(windowId);
@@ -923,11 +965,20 @@ function notifyTabBarUpdate(windowId) {
   });
 
   // Send update to tab bar
-  windowController.tabBarView.webContents.send('tab-bar:tabs-updated', { tabs });
+  windowController.tabBarView.webContents.send('tab-bar:tabs-updated', {
+    tabs,
+    splitTabId: windowState.splitTabId || null,
+    splitRatio: windowState.splitRatio || 0.5,
+  });
 
   // Send active tab update
   if (windowState.activeTabId) {
     windowController.tabBarView.webContents.send('tab-bar:tab-activated', windowState.activeTabId);
+  }
+
+  // Send split tab update
+  if (windowState.splitTabId) {
+    windowController.tabBarView.webContents.send('tab-bar:split-tab-activated', windowState.splitTabId);
   }
 }
 
