@@ -36,6 +36,8 @@ const tabsSlice = createSlice({
         url,
         title = 'New Tab',
         favicon = '',
+        workspaceIcon = null,
+        workspaceName = null,
         isPinned = false,
       } = action.payload;
 
@@ -45,8 +47,8 @@ const tabsSlice = createSlice({
         url: url || 'https://www.notion.so',
         title,
         favicon,
-        workspaceIcon: null,
-        workspaceName: null,
+        workspaceIcon,
+        workspaceName,
         isLoaded: false,
         breadcrumbs: [],
         isPinned,

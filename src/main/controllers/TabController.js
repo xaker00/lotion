@@ -152,7 +152,10 @@ class TabController {
 
       // Extract workspace icon and name
       this.extractWorkspaceInfo();
-      setTimeout(() => this.extractWorkspaceInfo(), 1000);
+    });
+
+    webContents.on('dom-ready', () => {
+      this.extractWorkspaceInfo();
     });
 
     // Navigation started
@@ -718,20 +721,44 @@ class TabController {
     if (this.isDestroyed || !this.webContentsView) return;
     try {
       const info = await this.webContentsView.webContents.executeJavaScript(`(() => {
-        const switcher = document.querySelector('.notion-sidebar-switcher');
-        if (!switcher) return null;
-        const iconEl = switcher.querySelector('.notion-record-icon');
-        const img = iconEl?.querySelector('img');
-        const text = iconEl?.textContent?.trim();
-        const nameEl = switcher.querySelector('div[style*="font-weight: 500"]') || switcher.querySelector('.x78zum5 div');
-        return {
-          iconUrl: img?.src || null,
-          iconText: (!img && text) ? text : null,
-          name: nameEl?.textContent?.trim() || switcher.textContent?.trim() || null
-        };
+        return new Promise((resolve) => {
+          const check = () => {
+            const switcher = document.querySelector('.notion-sidebar-switcher');
+            if (!switcher) return false;
+            const iconEl = switcher.querySelector('.notion-record-icon');
+            const img = iconEl?.querySelector('img');
+            const text = iconEl?.textContent?.trim();
+            const nameEl = switcher.querySelector('div[style*="font-weight: 500"]') ||
+                           switcher.querySelector('.x78zum5 div');
+            const name = nameEl?.textContent?.trim() || switcher.textContent?.trim() || null;
+            const iconUrl = img?.src || null;
+            const iconText = (!img && text) ? text : null;
+            if (name || iconUrl || iconText) {
+              resolve({
+                iconUrl,
+                iconText: iconText || (name ? name.charAt(0).toUpperCase() : null),
+                name: name || 'Workspace'
+              });
+              return true;
+            }
+            return false;
+          };
+
+          if (check()) return;
+
+          let attempts = 0;
+          const maxAttempts = 20; // 20 * 500ms = 10 seconds
+          const interval = setInterval(() => {
+            attempts++;
+            if (check() || attempts >= maxAttempts) {
+              clearInterval(interval);
+              if (attempts >= maxAttempts) resolve(null);
+            }
+          }, 500);
+        });
       })()`);
 
-      if (info && (info.iconUrl || info.iconText)) {
+      if (info && (info.iconUrl || info.iconText || info.name)) {
         const { updateTabWorkspace } = require('../store/slices/tabsSlice');
         this.store.dispatch(
           updateTabWorkspace({

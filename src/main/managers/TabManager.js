@@ -60,6 +60,8 @@ class TabManager {
     makeActive = true,
     isPinned = false,
     insertAfterTabId = null,
+    workspaceIcon = null,
+    workspaceName = null,
   }) {
     if (this.tabs.has(tabId)) {
       log.warn(`Tab ${tabId} already exists, returning existing tab`);
@@ -76,6 +78,8 @@ class TabManager {
         url,
         title,
         isPinned,
+        workspaceIcon,
+        workspaceName,
       })
     );
 

@@ -304,18 +304,42 @@ class WindowController {
     const tabManager = TabManager.getInstance();
     const config = require('../../../config/config.json');
 
+    const activeTab = this.currentActiveTabController;
+    const activeTabState = activeTab ? this.store.getState().tabs.tabs[activeTab.tabId] : null;
+
     const makeActive = options.makeActive !== undefined ? options.makeActive : true;
     const insertAfterTabId = options.insertAfterTabId !== undefined
       ? options.insertAfterTabId
-      : (this.currentActiveTabController ? this.currentActiveTabController.tabId : null);
+      : (activeTab ? activeTab.tabId : null);
 
-    log.info(`Creating tab in window ${this.windowId}, makeActive: ${makeActive}, insertAfterTabId: ${insertAfterTabId}`);
+    let targetUrl = options.url;
+    if (!targetUrl) {
+      if (activeTab) {
+        const currentUrl = activeTab.getURL();
+        if (currentUrl && currentUrl.startsWith('https://www.notion.so/')) {
+          try {
+            const parsed = new URL(currentUrl);
+            const pathSegments = parsed.pathname.split('/').filter(Boolean);
+            if (pathSegments.length > 0 && !pathSegments[0].match(/^[0-9a-f]{32}$/i)) {
+              targetUrl = `${parsed.origin}/${pathSegments[0]}`;
+            }
+          } catch (_) {}
+        }
+      }
+      if (!targetUrl) {
+        targetUrl = config.domainBaseUrl;
+      }
+    }
+
+    log.info(`Creating tab in window ${this.windowId}, makeActive: ${makeActive}, insertAfterTabId: ${insertAfterTabId}, url: ${targetUrl}`);
     const tabController = tabManager.createTab({
       windowId: this.windowId,
-      url: options.url || config.domainBaseUrl,
+      url: targetUrl,
       title: options.title || 'New Tab',
       makeActive,
       insertAfterTabId,
+      workspaceIcon: options.workspaceIcon !== undefined ? options.workspaceIcon : (activeTabState?.workspaceIcon || null),
+      workspaceName: options.workspaceName !== undefined ? options.workspaceName : (activeTabState?.workspaceName || null),
     });
 
     if (makeActive) {
