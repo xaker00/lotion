@@ -115,9 +115,71 @@ function render() {
   setupTabListWheelScroll();
 }
 
+// Distinct pastel tint palettes for workspace clusters
+const WORKSPACE_PALETTES = [
+  // 0: Sky / Frost Blue
+  {
+    lightBg: 'rgba(59, 130, 246, 0.16)',
+    lightBorder: 'rgba(59, 130, 246, 0.40)',
+    darkBg: 'rgba(59, 130, 246, 0.22)',
+    darkBorder: 'rgba(59, 130, 246, 0.45)',
+    accent: '#3b82f6',
+  },
+  // 1: Emerald / Sage Green
+  {
+    lightBg: 'rgba(16, 185, 129, 0.16)',
+    lightBorder: 'rgba(16, 185, 129, 0.40)',
+    darkBg: 'rgba(16, 185, 129, 0.22)',
+    darkBorder: 'rgba(16, 185, 129, 0.45)',
+    accent: '#10b981',
+  },
+  // 2: Violet / Lavender Purple
+  {
+    lightBg: 'rgba(139, 92, 246, 0.16)',
+    lightBorder: 'rgba(139, 92, 246, 0.40)',
+    darkBg: 'rgba(139, 92, 246, 0.22)',
+    darkBorder: 'rgba(139, 92, 246, 0.45)',
+    accent: '#8b5cf6',
+  },
+  // 3: Warm Coral / Amber Orange
+  {
+    lightBg: 'rgba(245, 158, 11, 0.16)',
+    lightBorder: 'rgba(245, 158, 11, 0.42)',
+    darkBg: 'rgba(245, 158, 11, 0.22)',
+    darkBorder: 'rgba(245, 158, 11, 0.45)',
+    accent: '#f59e0b',
+  },
+  // 4: Rose / Crimson Pink
+  {
+    lightBg: 'rgba(244, 63, 94, 0.15)',
+    lightBorder: 'rgba(244, 63, 94, 0.40)',
+    darkBg: 'rgba(244, 63, 94, 0.22)',
+    darkBorder: 'rgba(244, 63, 94, 0.45)',
+    accent: '#f43f5e',
+  },
+  // 5: Cyan / Teal
+  {
+    lightBg: 'rgba(6, 182, 212, 0.16)',
+    lightBorder: 'rgba(6, 182, 212, 0.40)',
+    darkBg: 'rgba(6, 182, 212, 0.22)',
+    darkBorder: 'rgba(6, 182, 212, 0.45)',
+    accent: '#06b6d4',
+  },
+];
+
 // Render tabs grouped into workspace clusters
 function renderTabGroups(tabList) {
   if (!tabList || tabList.length === 0) return '';
+
+  const isDark = document.body.classList.contains('dark-mode') ||
+                 Array.from(document.body.classList).some(c => c.startsWith('theme-'));
+
+  // Assign each distinct workspace in this window a unique color palette
+  const uniqueWorkspaces = Array.from(new Set(tabList.map(t => t.workspaceName).filter(Boolean)));
+  const workspaceColorMap = new Map();
+  uniqueWorkspaces.forEach((name, index) => {
+    workspaceColorMap.set(name, WORKSPACE_PALETTES[index % WORKSPACE_PALETTES.length]);
+  });
 
   const groups = [];
   let currentGroup = null;
@@ -136,9 +198,16 @@ function renderTabGroups(tabList) {
   }
 
   return groups.map(group => {
-    const renderedTabs = group.tabs.map(tab => renderTab(tab)).join('');
+    const palette = group.name ? workspaceColorMap.get(group.name) : null;
+    let styleAttr = '';
+    if (palette) {
+      const bg = isDark ? palette.darkBg : palette.lightBg;
+      const border = isDark ? palette.darkBorder : palette.lightBorder;
+      styleAttr = `style="background-color: ${bg}; border-color: ${border};"`;
+    }
+    const renderedTabs = group.tabs.map(tab => renderTab(tab, palette)).join('');
     const titleAttr = group.name ? `title="Workspace: ${escapeHtml(group.name)}"` : '';
-    return `<div class="workspace-group" ${titleAttr}>${renderedTabs}</div>`;
+    return `<div class="workspace-group" ${styleAttr} ${titleAttr}>${renderedTabs}</div>`;
   }).join('');
 }
 
@@ -180,7 +249,7 @@ function updateOverflowIndicators() {
 }
 
 // Render individual tab
-function renderTab(tab) {
+function renderTab(tab, palette) {
   const isActive = tab.tabId === activeTabId;
   const isPinned = tab.isPinned;
   const title = truncateTitle(tab.title || 'New Tab', 20);
@@ -204,9 +273,14 @@ function renderTab(tab) {
     ? `<img src="${escapeHtml(tab.favicon)}" class="favicon" alt="" onerror="this.style.display='none'">`
     : '<span class="favicon">📄</span>';
 
+  const activeStyle = (isActive && palette)
+    ? `style="border-bottom-color: ${palette.accent};"`
+    : '';
+
   return `
     <div class="tab ${isActive ? 'active' : ''} ${isPinned ? 'pinned' : ''}"
          data-tab-id="${tab.tabId}"
+         ${activeStyle}
          draggable="true"
          title="${escapeHtml(tab.title || 'Untitled')}">
       ${workspaceIconHtml}
