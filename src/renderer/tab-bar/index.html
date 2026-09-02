@@ -188,6 +188,15 @@
       border-bottom: 1px solid var(--border-color);
       border-radius: 8px 8px 0 0; /* Rounded corners at top to match window */
       overflow: hidden; /* Clip child elements to rounded corners */
+      padding-top: 2px;
+      -webkit-app-region: drag;
+    }
+
+    .window-drag-area {
+      flex: 0 0 36px;
+      min-width: 36px;
+      height: 100%;
+      -webkit-app-region: drag;
     }
 
     .traffic-lights-spacer {

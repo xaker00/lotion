@@ -98,6 +98,7 @@ function render() {
         ${tabs.map(tab => renderTab(tab)).join('')}
       </div>
       <button class="new-tab-btn" id="new-tab-btn" title="New Tab">+</button>
+      <div class="window-drag-area" title="Drag to move window"></div>
       ${showWindowControls ? `
       <div class="window-controls">
         <button class="window-control-btn minimize" id="minimize-btn" title="Minimize">−</button>
