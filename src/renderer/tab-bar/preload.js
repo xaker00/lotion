@@ -51,4 +51,14 @@ contextBridge.exposeInMainWorld('tabBarAPI', {
     ipcRenderer.on('tab-bar:theme-changed', listener);
     return () => ipcRenderer.removeListener('tab-bar:theme-changed', listener);
   },
+
+  // Platform
+  platform: process.platform,
+
+  // Listen for fullscreen state changes
+  onFullscreenChanged: (callback) => {
+    const listener = (event, isFullScreen) => callback(isFullScreen);
+    ipcRenderer.on('tab-bar:fullscreen-changed', listener);
+    return () => ipcRenderer.removeListener('tab-bar:fullscreen-changed', listener);
+  },
 });

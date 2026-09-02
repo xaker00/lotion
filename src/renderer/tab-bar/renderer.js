@@ -4,6 +4,9 @@
 let tabs = [];
 let activeTabId = null;
 let windowId = null;
+let platform = window.tabBarAPI?.platform || 'linux';
+let useNativeFrame = false;
+let isFullScreen = false;
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -20,7 +23,10 @@ async function loadInitialState() {
     tabs = state.tabs || [];
     activeTabId = state.activeTabId || null;
     windowId = state.windowId || null;
-    console.log('Tab bar loaded:', { tabs, activeTabId, windowId });
+    platform = state.platform || window.tabBarAPI?.platform || 'linux';
+    useNativeFrame = !!state.useNativeFrame;
+    isFullScreen = !!state.isFullScreen;
+    console.log('Tab bar loaded:', { tabs, activeTabId, windowId, platform, useNativeFrame, isFullScreen });
   } catch (error) {
     console.error('Failed to load initial tab state:', error);
   }
@@ -46,6 +52,14 @@ function setupEventListeners() {
       applyLotionTheme(themeName);
     });
   }
+
+  // Listen for fullscreen state changes
+  if (window.tabBarAPI.onFullscreenChanged) {
+    window.tabBarAPI.onFullscreenChanged((fullscreenState) => {
+      isFullScreen = fullscreenState;
+      render();
+    });
+  }
 }
 
 // Render tab bar UI
@@ -53,8 +67,12 @@ function render() {
   const container = document.getElementById('root');
   if (!container) return;
 
+  const showTrafficLightSpacer = platform === 'darwin' && !useNativeFrame && !isFullScreen;
+  const showWindowControls = !useNativeFrame && platform !== 'darwin';
+
   container.innerHTML = `
     <div class="tab-bar">
+      ${showTrafficLightSpacer ? '<div class="traffic-lights-spacer"></div>' : ''}
       <div class="nav-controls">
         <div class="app-logo" id="app-logo" title="Lotion">
           <img src="./logo.png" alt="L" style="width: 100%; height: 100%;" onerror="this.parentElement.textContent='L'">
@@ -67,11 +85,13 @@ function render() {
         ${tabs.map(tab => renderTab(tab)).join('')}
       </div>
       <button class="new-tab-btn" id="new-tab-btn" title="New Tab">+</button>
+      ${showWindowControls ? `
       <div class="window-controls">
         <button class="window-control-btn minimize" id="minimize-btn" title="Minimize">−</button>
         <button class="window-control-btn maximize" id="maximize-btn" title="Maximize">□</button>
         <button class="window-control-btn close" id="close-btn" title="Close">×</button>
       </div>
+      ` : ''}
     </div>
   `;
 

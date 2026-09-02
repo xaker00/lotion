@@ -22,8 +22,8 @@ class WindowController {
     const localStore = new Store();
     this.useNativeFrame = !!localStore.get('useNativeWindowFrame', false);
 
-    // Tab bar height in pixels (0 when there's no tab bar to draw).
-    this.TAB_BAR_HEIGHT = this.useNativeFrame ? 0 : 32;
+    // Tab bar height in pixels
+    this.TAB_BAR_HEIGHT = 32;
 
     log.info(`WindowController initialized for windowId: ${this.windowId} (useNativeFrame=${this.useNativeFrame})`);
   }
@@ -31,9 +31,7 @@ class WindowController {
   init() {
     log.info(`Initializing window: ${this.windowId}`);
     this.createBrowserWindow();
-    if (!this.useNativeFrame) {
-      this.createTabBarView();
-    }
+    this.createTabBarView();
     this.setupBrowserWindowListeners();
 
     // Register the window in Redux BEFORE creating the initial tab.
@@ -78,6 +76,9 @@ class WindowController {
       // standard Electron menu bar instead of the logo popup menu.
       frame: this.useNativeFrame,
       titleBarStyle: this.useNativeFrame ? 'default' : 'hidden',
+      ...(process.platform === 'darwin' && !this.useNativeFrame
+        ? { trafficLightPosition: { x: 12, y: 10 } }
+        : {}),
       transparent: false, // Don't use transparency (causes resize issues on Linux)
       backgroundColor: '#f5f5f5', // Match light theme background
       webPreferences: {
@@ -191,6 +192,18 @@ class WindowController {
         this.updateViewBounds();
       });
     });
+
+    this.browserWindow.on('enter-full-screen', () => {
+      log.debug(`Window ${this.windowId} entered full screen`);
+      this.tabBarView?.webContents?.send('tab-bar:fullscreen-changed', true);
+      this.updateViewBounds();
+    });
+
+    this.browserWindow.on('leave-full-screen', () => {
+      log.debug(`Window ${this.windowId} left full screen`);
+      this.tabBarView?.webContents?.send('tab-bar:fullscreen-changed', false);
+      this.updateViewBounds();
+    });
   }
 
   /**
@@ -222,24 +235,16 @@ class WindowController {
    * Update tab bar and content area bounds based on window size
    */
   updateViewBounds() {
-    if (!this.browserWindow) return;
-    // In native-frame mode there's no tab bar to lay out; just size
-    // the active tab to fill the content area.
-    if (!this.tabBarView && this.useNativeFrame) {
-      const { width, height } = this.browserWindow.getContentBounds();
-      const tab = this.currentActiveTabController?.webContentsView;
-      if (tab) tab.setBounds({ x: 0, y: 0, width, height });
-      return;
-    }
-    if (!this.tabBarView) return;
+    if (!this.browserWindow || !this.tabBarView) return;
 
-    // For frameless windows (frame: false), getBounds() returns the correct size
-    // getContentBounds() can return cached/stale values during maximize transitions
-    const bounds = this.browserWindow.getBounds();
-    const { width, height } = bounds;
+    // For native-frame windows, getContentBounds() gives the client area dimensions.
+    // For frameless windows, getBounds() avoids stale/cached values during maximize transitions on some Linux WMs.
+    const { width, height } = this.useNativeFrame
+      ? this.browserWindow.getContentBounds()
+      : this.browserWindow.getBounds();
 
     log.debug(`Updating view bounds for window ${this.windowId}:`, {
-      bounds: bounds,
+      bounds: { width, height },
       isMaximized: this.browserWindow.isMaximized(),
       width,
       height

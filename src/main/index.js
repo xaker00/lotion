@@ -106,8 +106,8 @@ function toggleNativeWindowFrame(newValue) {
     title: 'Restart Required',
     message: newValue ? 'Native window decorations enabled' : 'Custom (tabbed) window enabled',
     detail: newValue
-      ? "Lotion will switch to native window decorations the next time you launch. The custom tab bar is replaced with single-window-per-tab behavior, and settings move to the standard menu bar."
-      : "Lotion will switch back to the custom tab bar the next time you launch.",
+      ? "Lotion will use native window decorations the next time you launch, with the tab bar displayed below the system title bar."
+      : "Lotion will switch back to custom window decorations the next time you launch.",
     buttons: ['Restart Now', 'Later'],
     defaultId: 0,
     cancelId: 1,
@@ -735,6 +735,9 @@ ipcMain.handle('tab-bar:get-initial-state', (event) => {
     tabs,
     activeTabId: windowState.activeTabId,
     windowId: windowController.windowId,
+    useNativeFrame: windowController.useNativeFrame,
+    platform: process.platform,
+    isFullScreen: windowController.browserWindow.isFullScreen(),
   };
 });
 
