@@ -265,14 +265,6 @@ class WindowController {
       height
     });
 
-    // Tab bar at top - ALWAYS set bounds to ensure it stays on top
-    this.tabBarView.setBounds({
-      x: 0,
-      y: 0,
-      width: width,
-      height: this.TAB_BAR_HEIGHT,
-    });
-
     // Update active tab content area (below tab bar)
     if (this.currentActiveTabController && this.currentActiveTabController.webContentsView) {
       this.currentActiveTabController.webContentsView.setBounds({
@@ -284,12 +276,19 @@ class WindowController {
       log.debug(`Set tab content bounds:`, { x: 0, y: this.TAB_BAR_HEIGHT, width, height: height - this.TAB_BAR_HEIGHT });
     }
 
-    // Ensure tab bar stays on top by removing and re-adding it
-    // This forces it to be the topmost view
+    // Ensure tab bar stays on top by bringing it to front
     if (this.browserWindow.contentView) {
       this.browserWindow.contentView.removeChildView(this.tabBarView);
       this.browserWindow.contentView.addChildView(this.tabBarView);
     }
+
+    // Tab bar at top - set bounds AFTER adding to ensure bounds are active
+    this.tabBarView.setBounds({
+      x: 0,
+      y: 0,
+      width: width,
+      height: this.TAB_BAR_HEIGHT,
+    });
   }
 
   /**
