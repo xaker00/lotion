@@ -187,21 +187,19 @@ function renderTabGroups(tabList) {
     focusedWorkspace = null;
   }
 
-  const groups = [];
-  let currentGroup = null;
-
+  // Group all tabs by workspaceName so tabs from the same workspace are always united
+  const groupMap = new Map();
   for (const tab of tabList) {
     const wsName = tab.workspaceName || '';
-    if (!currentGroup || currentGroup.name !== wsName) {
-      currentGroup = {
+    if (!groupMap.has(wsName)) {
+      groupMap.set(wsName, {
         name: wsName,
-        tabs: [tab],
-      };
-      groups.push(currentGroup);
-    } else {
-      currentGroup.tabs.push(tab);
+        tabs: [],
+      });
     }
+    groupMap.get(wsName).tabs.push(tab);
   }
+  const groups = Array.from(groupMap.values());
 
   return groups.map(group => {
     const palette = group.name ? workspaceColorMap.get(group.name) : null;
