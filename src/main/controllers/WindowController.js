@@ -126,7 +126,17 @@ class WindowController {
     // Note: ready-to-show doesn't fire reliably when using WebContentsView
     // We'll show the window manually after setup
 
+    const { screen } = require('electron');
+    const onDisplayMetricsChanged = () => {
+      if (this.browserWindow && !this.browserWindow.isDestroyed()) {
+        log.debug(`Display metrics changed, updating bounds for window ${this.windowId}`);
+        this.updateViewBounds();
+      }
+    };
+    screen.on('display-metrics-changed', onDisplayMetricsChanged);
+
     this.browserWindow.on('closed', () => {
+      screen.removeListener('display-metrics-changed', onDisplayMetricsChanged);
       log.info(`Window ${this.windowId} closed`);
       this.store.dispatch(removeWindow(this.windowId));
       // AppController needs to be notified to remove this WindowController instance
@@ -174,6 +184,7 @@ class WindowController {
         const bounds = this.browserWindow.getBounds();
         log.debug(`Window ${this.windowId} moved`, bounds);
         this.store.dispatch(updateWindowBounds({ windowId: this.windowId, bounds }));
+        this.updateViewBounds();
       }
     });
 
@@ -226,6 +237,10 @@ class WindowController {
     // Load tab bar HTML
     const tabBarPath = path.join(__dirname, '../../renderer/tab-bar/index.html');
     this.tabBarView.webContents.loadFile(tabBarPath);
+
+    // Ensure tab bar zoom stays fixed at 1:1 regardless of display scaling or zoom gestures
+    this.tabBarView.webContents.setVisualZoomLevelLimits(1, 1);
+    this.tabBarView.webContents.setZoomFactor(1);
 
     // Update bounds
     this.updateViewBounds();
